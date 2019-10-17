@@ -1,0 +1,31 @@
+pipeline {
+    agent {
+        label 'msq-node5'
+    }
+    stages {
+        stage('Upload to some/s3/bucket') {
+			environment {
+				BUILD_VERSION = "${env.BUILD_VERSION}"
+				S3_BUCKET = "some-bucket"
+				S3_REGION = "some-region"
+            }		
+            steps {
+					withCredentials([
+						[$class: 'AmazonWebServicesCredentialsBinding', 
+						accessKeyVariable: 'AWS_ACCESS_KEY_ID', 
+						credentialsId: 'aws_credentials', 
+						secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
+							dir('jenkins') {
+								sh 'chmod 744 upload_to_s3.sh'
+								sh './upload_to_s3.sh ${AWS_ACCESS_KEY_ID} ${AWS_SECRET_ACCESS_KEY} ${S3_BUCKET} ${S3_REGION} ${BUILD_VERSION}'
+							}
+						}
+            }
+        }
+     }
+    post { 
+       always {
+           cleanWs()
+       }
+    }
+}

@@ -1,0 +1,84 @@
+pipeline {
+    agent {
+        label 'some-node'
+    }
+	options {
+		// test
+		gitlabBuilds(builds: ['stage1', 'stage2', 'stage3', 'stage4'])
+	}
+    stages {
+        stage(stage1') {
+            steps {
+                                sh '[ ! -z $(docker images -q teracy/angular-cli:latest) ] || docker pull teracy/angular-cli:latest'
+                                dir('app') {
+                                        sh 'npm install'
+                                }
+            }
+        }
+                stage('stage2') {
+                        steps {
+                                script {
+                                        dir('app') {
+                                                nodejs(cacheLocationStrategy: workspace(), nodeJSInstallationName: 'NodeJS_10.16.0') {
+                                                        try {
+                                                                sh 'npm run build:ci'
+                                                                currentBuild.result = 'SUCCESS'
+                                                        } catch (Exception err) {
+                                                                currentBuild.result = 'FAILURE'
+								throw err
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                }
+                stage('stage3') {
+                        steps {
+                                script {
+                                        try {
+                                                sh (script: 'docker run --rm -v $(pwd)/app:/home/node/app -w /home/node/app teracy/angular-cli:latest npm run test:ci')
+                                                currentBuild.result = 'SUCCESS'
+                                        } catch (Exception err) {
+                                                currentBuild.result = 'FAILURE'
+						throw err
+                                        }
+                                }
+                        }
+                }
+                stage('stage4') {
+                        steps {
+                                script {
+                                        dir('app') {
+                                                nodejs(cacheLocationStrategy: workspace(), nodeJSInstallationName: 'NodeJS_10.16.0') {
+                                                        try {
+                                                                sh 'npm run lint'
+                                                                currentBuild.result = 'SUCCESS'
+                                                        } catch (Exception err) {
+                                                                currentBuild.result = 'FAILURE'
+								throw err
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                }
+    }
+    post {
+        always {
+            cleanWs()
+        }
+		success {
+			updateGitlabCommitStatus name: 'stage1', state: 'success'
+			updateGitlabCommitStatus name: 'stage2', state: 'success'
+			updateGitlabCommitStatus name: 'stage3', state: 'success'
+			updateGitlabCommitStatus name: 'stage4', state: 'success'
+		}
+		failure {
+			updateGitlabCommitStatus name: 'stage1', state: 'failed'
+			updateGitlabCommitStatus name: 'stage2', state: 'failed'
+			updateGitlabCommitStatus name: 'stage3', state: 'failed'
+			updateGitlabCommitStatus name: 'stage4', state: 'failed'		
+		}
+    }
+}
+
